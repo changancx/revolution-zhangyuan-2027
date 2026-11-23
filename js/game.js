@@ -61,10 +61,46 @@ function newState(){
 
 function insideN(){ return FR.reduce((a,f)=>a + (S.fl[f.id]>=0? S.cnt[f.id]:0), 0); }
 function validSeats(){ return FR.reduce((a,f)=>a + (S.fl[f.id]>=0? S.cnt[f.id]*S.fac[f.id]/100 : 0), 0); }
-function effMul(){ return clamp(0.55 + validSeats()/260, .55, 1.45); }
+function effMul(){ return clamp(0.78 + validSeats()/700, .78, 1.16); }
 function insideMax(){ return FR.filter(f=>S.fl[f.id]>=0).reduce((a,f)=>a+S.cnt[f.id],0); }
 function guard(){ return Math.round((S.sup.ab + S.sup.bw)/2); }
 function supOf(id){ return S.sup[id]|0; }
+
+/* ══════════ 数值对齐原版 ══════════
+   原版一个行动大约「决心 +3、激进 +2」，还常带代价（怀疑 +2、人数 -100）。
+   这里把所有效果统一压到那个量级：正效果 ×0.55，负效果 ×0.65，怀疑略轻。
+   界面显示的就是压过的数，不会有「写着 +8 实际 +4」的错位。 */
+function scaleVal(k,v){
+  if(typeof v!=='number') return v;
+  if(k==='med'||k==='dep'||k==='neg'||k==='enter') return v;   // 资源/人数/谈判/进楼不缩
+  if(k==='s'||k==='susp') return v>0? Math.max(1,Math.round(v*0.6)) : Math.min(-1,Math.round(v*0.8));
+  return v>0 ? Math.max(1,Math.round(v*0.55)) : Math.min(-1,Math.round(v*0.65));
+}
+function scaleEff(e){
+  if(!e) return e;
+  for(const k in e){
+    if(k==='pts'||k==='fac'){
+      for(const id in e[k]) e[k][id]=scaleVal('pts',e[k][id]);
+    } else {
+      e[k]=scaleVal(k,e[k]);
+    }
+  }
+  return e;
+}
+function normalizeAll(){
+  ACT.forEach(a=>scaleEff(a.eff));
+  LAW.forEach(l=>scaleEff(l.eff));
+  EV.forEach(ev=>ev.c.forEach(c=>scaleEff(c.e)));
+  DS.forEach(p=>scaleEff(p.e));
+  OPEN.forEach(o=>scaleEff(o.eff));
+  FR.forEach(f=>{ if(f.bonus){ scaleEff(f.bonus.fx); scaleEff(f.bonus.bad); } });
+  for(const id in OUT_X){
+    const x=OUT_X[id];
+    ['pas','kpas'].forEach(w=>{ if(x[w]) scaleEff(x[w].fx); });
+    ['act','act2'].forEach(w=>{ if(x[w]) scaleEff(x[w].fx); });
+  }
+}
+normalizeAll();
 
 function log(t,k){
   S.log.push({d:S.day,t,k:k||''});
@@ -79,9 +115,9 @@ function toast(t){
 /* 董事会怀疑：你动静越大，董事会越早动手 */
 function suspGain(e){
   let s=(e.s||0);
-  if(e.rad) s += Math.max(0,e.rad)*0.22;
-  if(e.pub) s += Math.max(0,e.pub)*0.10;
-  if(e.r)   s += Math.max(0,e.r)*0.04;
+  if(e.rad) s += Math.max(0,e.rad)*0.35;
+  if(e.pub) s += Math.max(0,e.pub)*0.22;
+  if(e.r)   s += Math.max(0,e.r)*0.10;
   if(e.neg) s -= Math.min(9, e.neg*3);
   return Math.round(s);
 }
@@ -92,7 +128,11 @@ function applyEff(e){
     const v=e[k];
     if(k==='r') S.r=cl100(S.r + Math.round(v>0? v*m : v));
     else if(k==='rad') S.rad=cl100(S.rad + (v>0? Math.max(1,Math.round(v*0.7)) : v));
-    else if(k==='pub') S.pub=cl100(S.pub+v);
+    else if(k==='pub'){
+      // 越往上越难涨（70 以上减半），免得「全校支持」一路满格
+      const v2=(v>0 && S.pub>=70)? Math.max(1,Math.round(v*0.5)) : v;
+      S.pub=cl100(S.pub+v2);
+    }
     else if(k==='arm'){ S.sup.ab=cl100(S.sup.ab+v); S.sup.bw=cl100(S.sup.bw+v); }
     else if(k==='s') S.susp=cl100(S.susp+v);
     else if(k==='susp') S.susp=cl100(S.susp+v);
@@ -331,7 +371,7 @@ function renderFloor(){
 let mediaSel=null;
 function outSt(o){ if(o.id==='rm') return supOf('rm')>=50?'vs':'kr'; return S.out[o.id]||o.s; }
 function outLocked(o){ return o.lock; }
-function mediaIncome(){ return OUTLETS.reduce((a,o)=>a+(outSt(o)==='vs'? o.r:0), 0); }
+function mediaIncome(){ return Math.round(OUTLETS.reduce((a,o)=>a+(outSt(o)==='vs'? o.r:0), 0) * 0.5); }
 
 function nightlyFactions(){
   FR.forEach(f=>{
@@ -622,7 +662,8 @@ function endTurn(){
   applyEff(p.e);
   note('ds', p.t, p.e);
   log(p.t,'dn');
-  applyEff({r:-(2+Math.floor(S.day/4)), pub:-1, arm:-2, rad:-3});
+  applyEff({r:-(2+Math.floor(S.day/4)), pub:-3, arm:-2, rad:-1});
+  if(S.susp>=60) applyEff({pub:-1});   // 董事会一认真，舆论就跟着压过来
   S.susp=cl100(S.susp+2);
   log('又过去一天。门口的铁马换了个位置，别的一样。','');
   if(guard()<20){
