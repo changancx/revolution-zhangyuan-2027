@@ -101,6 +101,7 @@ function applyEff(e){
     else if(k==='dep') S.cnt.xl=Math.max(0,S.cnt.xl+v);
     else if(k==='loy') S.fac[S.selFac]=cl100(S.fac[S.selFac]+v);
     else if(k==='pts'){ for(const loc in v){ S.sup[loc]=cl100(S.sup[loc]+v[loc]); } }
+    else if(k==='fac'){ for(const fid in v){ S.fac[fid]=cl100((S.fac[fid]||0)+v[fid]); } }
     else if(k==='enter'){ const id=(typeof v==='string')?v:'sl'; if(S.fl[id]<0){ S.fl[id]=1; S.cnt[id]=(FR.find(f=>f.id===id)||{}).n||0; } }
   }
   if(!('s' in e) && !('susp' in e)){
@@ -255,6 +256,13 @@ function effText(e){
       }
       continue;
     }
+    if(k==='fac'){
+      for(const fid in v){
+        const f=(typeof FR!=='undefined'? FR.find(x=>x.id===fid):null);
+        parts.push(`<span class="${v[fid]>0?'up':'dn'}">${f?f.name:fid}忠诚${v[fid]>0?'+':''}${v[fid]}</span>`);
+      }
+      continue;
+    }
     if(k==='order'||k==='chance'||k==='run') continue;
     const good=(k==='r'||k==='pub'||k==='neg'||k==='loy'||k==='arm'||k==='med')? v>0 : (k==='s'||k==='susp'? v<0 : v>0);
     parts.push(`<span class="${good?'up':'dn'}">${N[k]||k}${v>0?'+':''}${v}</span>`);
@@ -356,6 +364,12 @@ function renderMedia(){
   const list=OUTLETS.slice().sort((a,b)=>ord[outSt(a)]-ord[outSt(b)]||b.r-a.r);
   const groups=[['vs','支持桃园'],['neu','中立'],['kr','支持董事会'],['off','已关闭']];
   let html='';
+  const propUsed=!!S.appeals.prop;
+  html+=`<div class="grp">常规宣传</div>
+    <div class="mc s-vs ${propUsed?'dim':''}" data-prop="1">
+      <div class="mn">例行宣传 · 楼内广播</div><div class="mr">—</div>
+      <div class="ms vs">${propUsed?'今天已播':'每天一次 · 免费'}</div>
+    </div>`;
   groups.forEach(([g,label])=>{
     const rows=list.filter(o=>outSt(o)===g);
     if(!rows.length) return;
@@ -428,8 +442,20 @@ function outAct(key){
   if(S.med<a.cost){ toast('需要 '+a.cost+' 舆论。'); return; }
   S.med-=a.cost; S.appeals[key]=1;
   applyEff(a.fx);
+  note('media', o.nm+'：'+a.t, a.fx);
   log(o.nm+': '+a.t+'。','new');
   S.feed.push(`【校园墙】${o.nm}：${a.t}`);
+  renderAll(); save();
+}
+
+/* 常规宣传：楼内广播，每天一次，不占行动、不花舆论 */
+function doProp(){
+  if(S.appeals.prop){ toast('今天的例行宣传已经做过了。'); return; }
+  S.appeals.prop=1;
+  const eff={pub:3, s:1};
+  applyEff(eff);
+  note('media','例行宣传：楼内广播照常播报', eff);
+  log('楼内广播照常播报，声音传到了操场边缘。','new');
   renderAll(); save();
 }
 
@@ -486,8 +512,13 @@ function showEvent(ev){
   $('#e-choices').innerHTML=ev.c.map((c,i)=>{
     const req=c.req? c.req(S) : true;
     const ok=req===true;
+    const nums=effText(c.e||{});
+    const note=c.n? `<span class="cn">${c.n}</span>` : '';
+    const line=ok
+      ? (nums + (note? ' · '+note : ''))
+      : `<span class="n">${c.rq||req}</span>`;
     return `<div class="ch ${ok?'':'off'}" data-ch="${i}"><div class="k">${i+1}</div><div>${c.l}</div>
-      <div class="e">${ok? (c.n||'') : `<span class="n">${c.rq||req}</span>`}</div></div>`;
+      <div class="e">${line}</div></div>`;
   }).join('');
   show('s-event');
 }
@@ -498,6 +529,7 @@ function chooseEvent(i){
   if(c.req && c.req(S)!==true){ toast(c.rq||'现在做不到。'); return; }
   S.usedEv.push(ev.id); S.pendingEvent=null;
   applyEff(c.e);
+  note('event', ev.t+' · '+c.l, c.e);
   log(`「${ev.t}」— ${c.l}`,'new');
   addFeed();
   show('s-map');
@@ -515,6 +547,7 @@ function doAct(id){
   S.usedActs.push(a.id);
   if(a.once) S.usedOnce.push(a.id);
   applyEff(a.eff);
+  note('act', a.name+'：'+a.res, a.eff);
   log(`<b>${a.name}</b>：${a.res}`,'new');
   addFeed();
   renderAll(); save();
@@ -544,6 +577,7 @@ function doLaw(id){
   S.lawDone=true; S.usedOnce.push(id);
   if(id==='L6') S.proposed=true;
   applyEff(L.eff);
+  note('law', L.name, L.eff);
   log(`<b>${L.name}</b> 颁布。${L.res}`,'new');
   addFeed();
   show('s-map'); renderAll(); save();
@@ -562,6 +596,9 @@ function startDay(){
   S.phase=S.day<=4?1:(S.day<=8?2:3);
   S.actsLeft=2; S.lawDone=false; S.medDone=false;
   S.usedActs=[]; S.pulledToday=false; S.appeals={};
+  S.dayMoves=[];                                   // 当日流水，写报纸用
+  S.d0={ r:Math.round(S.r), rad:S.rad, pub:S.pub, med:S.med, susp:Math.round(S.susp),
+         guard:guard(), valid:Math.round(validSeats()), inside:insideN() };
   offerLaws();
   log(`第 ${S.day} 天 · ${PHASE_NAME[S.phase]}`,'kr');
   addFeed();
@@ -573,11 +610,17 @@ function startDay(){
   if(ev) showEvent(ev); else show('s-map');
 }
 
+function note(kind,t,eff){
+  if(!S.dayMoves) S.dayMoves=[];
+  S.dayMoves.push({kind,t,eff:eff||{}});
+}
+
 function endTurn(){
   if(S.over||S.pendingEvent) return;
   if(S.actsLeft>0) log('还有行动没做，这一天就这么过去了。','');
   const p=pick(DS);
   applyEff(p.e);
+  note('ds', p.t, p.e);
   log(p.t,'dn');
   applyEff({r:-(2+Math.floor(S.day/4)), pub:-1, arm:-2, rad:-3});
   S.susp=cl100(S.susp+2);
@@ -596,8 +639,103 @@ function endTurn(){
   if(S.day>=8 && guard()>=85 && S.pub>=50) return gameOver('defect');
   if(S.day>=10 && S.proposed && S.neg>=4 && S.r>=25 && S.pub>=45 && validSeats()>=150) return gameOver('negotiated');
 
+  showPaper();          // 一天结束：先看报纸
+}
+
+function nextDay(){
+  if(S.over) return;
   S.day++;
   startDay();
+}
+
+/* ══════════ 日报（照原版：一天结束一张报纸） ══════════ */
+const PAPER_KICK={ ds:'董事会', event:'校内', law:'决议', act:'桃园', media:'舆论', none:'本日' };
+const PAPER_WORD={
+  ds:'据本社了解', event:'本报记者现场记录', law:'桃园方面发布',
+  act:'桃园方面', media:'媒体观察', none:'本报编辑部'
+};
+
+function paperHead(t){
+  const s=String(t||'').replace(/<[^>]+>/g,'').replace(/^[^：]{1,12}：/,'');
+  return s.length>26 ? s.slice(0,26)+'…' : s;
+}
+function paperLine(t){
+  return String(t||'').replace(/<[^>]+>/g,'');
+}
+function paperStamps(e){
+  const t=effText(e||{});
+  return t ? `<span class="st">${t}</span>` : '';
+}
+function paperComment(){
+  const v=Math.round(S.susp);
+  if(v>=80) return '明天不会平静。董事会的车队已经在北门等着了。';
+  if(v>=60) return '楼下的铁马又加了一排。编辑部今晚不打算关灯。';
+  if(v>=40) return '校董会开始认真对待桃园了，这不是好事，也不是坏事。';
+  if(S.rad>=70) return '操场上的话越来越硬。有人开始问「然后呢」。';
+  return '这一天又过去了。桃园的灯还亮着，董事会的也是。';
+}
+
+function showPaper(){
+  const M=(S.dayMoves||[]).slice();
+  const rank={ds:0,event:1,law:2,act:3,media:4};
+  M.sort((a,b)=>(rank[a.kind]??9)-(rank[b.kind]??9));
+  const lead=M.shift()||{kind:'none',t:'这一天平静地过去了，没有人敲门。',eff:{}};
+  const cols=M.splice(0,2);
+  const brief=M.slice();
+  const d0=S.d0||{};
+  const now={ r:Math.round(S.r),rad:S.rad,pub:S.pub,med:S.med,susp:Math.round(S.susp),
+              guard:guard(),valid:Math.round(validSeats()),inside:insideN() };
+  const rows=[
+    ['决心',d0.r,now.r],['激进',d0.rad,now.rad],['全校支持',d0.pub,now.pub],
+    ['董事会怀疑',d0.susp,now.susp],['舆论',d0.med,now.med],
+    ['保安支持',d0.guard,now.guard],['有效席位',d0.valid,now.valid],['在楼人数',d0.inside,now.inside]
+  ];
+  const rowHtml=rows.map(([nm,a,b])=>{
+    const dv=(b|0)-(a|0);
+    const cls=dv>0?'up':dv<0?'dn':'';
+    const sign=dv>0?'+':'';
+    return `<div class="row"><span>${nm}</span><b>${b}</b><i class="${cls}">${dv?(sign+dv):'—'}</i></div>`;
+  }).join('');
+
+  const colsHtml=cols.map(m=>`
+    <div class="col">
+      <div class="h2">${paperHead(m.t)}</div>
+      <p>${PAPER_WORD[m.kind]||''}，${paperLine(m.t)}</p>
+      ${paperStamps(m.eff)}
+    </div>`).join('');
+
+  const briefHtml=brief.length
+    ? `<div class="brief"><b>简讯</b> ${brief.map(m=>paperLine(m.t).slice(0,28)).join(' · ')}</div>`
+    : '';
+
+  $('#p-sheet').innerHTML=`
+    <div class="ptop"><span>第 ${180+S.day} 期</span><span>明德学院 · 校内发行</span><span>免费取阅</span></div>
+    <div class="pmast">明德日报</div>
+    <div class="pdate"><span>${WEEK[(S.day-1)%7]}　第 ${S.day} 天</span><span>${PHASE_NAME[S.phase]}</span></div>
+    <div class="pkick">${PAPER_KICK[lead.kind]||'本日'}　·　${PHASE_NAME[S.phase]}</div>
+    <div class="ph1">${paperHead(lead.t)}</div>
+    <div class="plead">
+      <p>${PAPER_WORD[lead.kind]||''}，${paperLine(lead.t)}</p>
+      ${paperStamps(lead.eff)}
+    </div>
+    ${colsHtml?`<div class="pcols">${colsHtml}</div>`:''}
+    ${briefHtml}
+    <div class="pfoot">明德日报 · 编辑部设在图书馆三楼 · 本版言论不代表校方</div>`;
+
+  $('#p-side').innerHTML=`
+    <div class="pbox">
+      <h3>今日结算</h3>
+      ${rowHtml}
+    </div>
+    <div class="pbox">
+      <h3>编辑部短评</h3>
+      <p class="pc">${paperComment()}</p>
+    </div>
+    <div class="pbtn" id="p-next"><span>继续</span><small>第 ${S.day+1} 天 · ENTER</small></div>`;
+
+  show('s-paper');
+  $('#p-next').onclick=()=>nextDay();
+  save();
 }
 
 function addFeed(){
@@ -776,6 +914,8 @@ function onKey(e){
     else if(k==='Tab'){ e.preventDefault(); show('s-floor'); }
     else if(k==='m'||k==='M'){ show('s-media'); }
     else if(k==='l'||k==='L'){ show('s-laws'); }
+  } else if(cur==='s-paper'){
+    if(k==='Enter') nextDay();
   } else if(cur==='s-assault'){
     if(k==='Enter') nextWave();
   } else if(cur==='s-end'){
@@ -855,7 +995,10 @@ function bind(){
   $('#f-btns').onclick=e=>{ const b=e.target.closest('[data-facact]'); if(!b) return; doFacAct(b.dataset.facact); };
 
   // 舆论
-  $('#d-list').onclick=e=>{ const o=e.target.closest('[data-o]'); if(!o) return; mediaSel=o.dataset.o; renderMedia(); };
+  $('#d-list').onclick=e=>{
+    if(e.target.closest('[data-prop]')){ doProp(); return; }
+    const o=e.target.closest('[data-o]'); if(!o) return; mediaSel=o.dataset.o; renderMedia();
+  };
   $('#d-detail').onclick=e=>{
     const w=e.target.closest('[data-w]'); if(w){ outWin(w.dataset.w); return; }
     const a=e.target.closest('[data-oa]'); if(a){ outAct(a.dataset.oa); return; }
@@ -945,6 +1088,7 @@ function autoplay(n){
       break;
     }
     endTurn();
+    if(cur==='s-paper') nextDay();     // 报纸那一屏，自动翻到第二天
   }
   renderAll();
 }

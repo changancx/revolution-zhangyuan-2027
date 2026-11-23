@@ -271,6 +271,7 @@ body{
 .ch .k{grid-row:1 / span 2;font-family:'PSP';font-size:8px;background:var(--dim);color:#111;height:20px;display:flex;align-items:center;justify-content:center}
 .ch .e{grid-column:2;font-size:12px;line-height:16px;color:var(--dim)}
 .ch .e .p{color:var(--ok)} .ch .e .n{color:var(--bad)}
+.ch .e .cn{color:var(--mute)}
 .ch.sel{border-color:var(--fire);background:#2a2216}
 .ch.off{opacity:.42;cursor:default}
 .ch.sel .k{background:var(--fire)}
@@ -333,3 +334,49 @@ body{
   .btn small{font-size:11px}
   #e-choices .ch > div:nth-child(2){font-size:22px;line-height:26px}
 }
+
+/* ═══════════ 日报（照原版 newspaper sheet） ═══════════ */
+#s-paper{background:#0b0c0f}
+#s-paper .psheet{position:absolute;left:16px;top:14px;width:876px;height:692px;
+  background:#d8ccb0;color:#15161a;padding:12px 16px 8px;overflow:hidden;
+  box-shadow:6px 6px 0 #000;font-family:'FPX',monospace}
+#s-paper .ptop{display:flex;justify-content:space-between;font-size:12px;color:#5a5348;
+  border-bottom:1px solid #8f8672;padding-bottom:3px}
+#s-paper .pmast{font-family:'PSP',monospace;font-size:34px;line-height:40px;text-align:center;
+  letter-spacing:4px;margin:8px 0 2px;color:#111417}
+#s-paper .pdate{display:flex;justify-content:space-between;font-size:12px;color:#4a443a;
+  border-top:3px double #4a443a;border-bottom:1px solid #8f8672;padding:4px 0;margin-bottom:8px}
+#s-paper .pkick{font-family:'PSP',monospace;font-size:12px;letter-spacing:2px;color:#8a3a2a;margin:6px 0 4px}
+#s-paper .ph1{font-size:36px;line-height:44px;color:#0e1013;margin:0 0 8px;letter-spacing:1px}
+#s-paper .plead{font-size:16px;line-height:24px;color:#23262c;border-bottom:1px solid #a99f8a;padding-bottom:8px}
+#s-paper .plead p{margin:0 0 6px}
+#s-paper .st{display:inline-block;font-family:'PSP',monospace;font-size:11px;line-height:14px;
+  border:2px solid #8a3a2a;color:#8a3a2a;padding:2px 5px;margin:2px 4px 0 0;letter-spacing:1px}
+#s-paper .st .up{color:#3d6b2f}
+#s-paper .st .dn{color:#8a3a2a}
+#s-paper .pcols{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+#s-paper .col{border-top:2px solid #4a443a;padding-top:6px}
+#s-paper .h2{font-size:20px;line-height:26px;color:#0e1013;margin-bottom:3px}
+#s-paper .col p{font-size:14px;line-height:20px;color:#2e3238;margin:0 0 4px}
+#s-paper .brief{font-size:13px;line-height:19px;color:#3a3e45;border-top:1px solid #a99f8a;margin-top:10px;padding-top:6px}
+#s-paper .brief b{font-family:'PSP',monospace;font-size:11px;color:#8a3a2a;margin-right:6px}
+#s-paper .pfoot{position:absolute;left:16px;right:16px;bottom:8px;font-size:11px;color:#6d675c;
+  border-top:1px solid #a99f8a;padding-top:4px;text-align:center}
+#s-paper .pside{position:absolute;right:16px;top:14px;width:372px;bottom:14px;
+  display:flex;flex-direction:column;gap:8px}
+#s-paper .pbox{background:var(--panel);border:2px solid var(--line);box-shadow:4px 4px 0 #000;padding:10px 12px}
+#s-paper .pbox h3{margin:0 0 6px;font-size:12px;letter-spacing:2px;color:var(--fire);font-weight:400}
+#s-paper .row{display:flex;align-items:baseline;gap:8px;font-size:12px;line-height:20px;
+  border-bottom:1px solid #23252b;color:var(--dim)}
+#s-paper .row span{flex:1}
+#s-paper .row b{color:var(--paper);font-weight:400;font-family:'PSP',monospace;font-size:12px}
+#s-paper .row i{font-style:normal;width:44px;text-align:right;font-size:12px}
+#s-paper .row i.up{color:#9bb04a}
+#s-paper .row i.dn{color:#e0866a}
+#s-paper .pc{font-size:12px;line-height:19px;color:var(--dim);margin:0}
+#s-paper .pbtn{margin-top:auto;height:60px;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;gap:4px;cursor:pointer;
+  background:#3a1714;border:2px solid #7a2a20;box-shadow:4px 4px 0 #000;color:#ffd0b8}
+#s-paper .pbtn:hover{border-color:var(--fire)}
+#s-paper .pbtn span{font-size:24px}
+#s-paper .pbtn small{font-size:12px;color:var(--dim)}
