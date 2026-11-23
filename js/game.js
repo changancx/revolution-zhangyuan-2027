@@ -746,9 +746,13 @@ function refreshTitle(){
 
 /* ══════════ 舞台缩放 ══════════ */
 function fitStage(){
-  const k=Math.min(window.innerWidth/1280, window.innerHeight/720);
+  const w=window.innerWidth, h=window.innerHeight;
+  const k=Math.min(w/1280, h/720);
   const el=$('#stage');
   el.style.transform=`scale(${k})`;
+  // 竖着拿手机就请主公转过来（照原版的好心提示）
+  const rot=$('#rotate');
+  if(rot) rot.classList.toggle('on', h>w && w<900);
 }
 
 /* ══════════ 键盘 ══════════ */
