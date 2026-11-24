@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 /* ══════════════════════════════════════════════════════════
    桃园 · 引擎
    ══════════════════════════════════════════════════════════ */
@@ -49,7 +49,7 @@ function newState(){
   return {
     day:1, phase:1,
     r:34, rad:20, pub:32, susp:0, neg:0, med:6,
-    opening:true, sup, out:{},
+    opening:true, sup, out:{}, prep:0,
     fac, cnt, fl,
     actsLeft:2, lawDone:false, medDone:false,
     lawOffer:[], usedOnce:[], usedEv:[], usedActs:[],
@@ -178,6 +178,7 @@ function prRate(){
 }
 
 function suspState(){
+  if(S.prep>0) return {t:'已决定清场',k:'hot'};
   if(S.susp>=90) return {t:'明早就会动手',k:'hot'};
   if(S.susp>=70) return {t:'开始准备清场',k:'hot'};
   if(S.susp>=45) return {t:'盯着你们了',k:''};
@@ -233,12 +234,21 @@ function renderMap(){
   }).join('');
 
   const st=suspState();
+  const rate=prRate(), prep=S.prep|0;
   $('#m-susp').textContent=Math.round(S.susp)+'%';
   $('#m-suspbar').style.width=Math.round(S.susp)+'%';
   $('#m-suspstate').textContent=st.t;
-  $('#m-assaultbox').classList.toggle('hot', S.susp>=60);
-  $('#m-clock').textContent = S.susp>=60 ? ('约 '+Math.max(1,Math.ceil((80-S.susp)/3))+' 天') : '—';
-  $('#m-a2').textContent = S.susp>=60 ? '保卫处的传闻' : '尚无动静';
+  $('#m-assaultbox').classList.toggle('hot', prep>0 || S.susp>=70);
+  if(prep>0){
+    $('#m-clock').textContent='≈ '+prep+' 天';
+    $('#m-a2').textContent='清场已经在准备';
+  } else if(S.susp>=45){
+    $('#m-clock').textContent='约 '+Math.max(1,Math.ceil((100-S.susp)/rate))+' 天';
+    $('#m-a2').textContent='每晚 +'+rate;
+  } else {
+    $('#m-clock').textContent='—';
+    $('#m-a2').textContent='尚无动静';
+  }
 
   const loc=LOC.find(l=>l.id===S.sel);
   if(S.opening){
@@ -656,7 +666,12 @@ function startDay(){
   log(`第 ${S.day} 天 · ${PHASE_NAME[S.phase]}`,'kr');
   addFeed();
 
-  if(S.day>=LAST_DAY || S.susp>=100){ startAssault(); return; }
+  if(S.prep>0){
+    if(S.prep<=1){ S.prep=0; startAssault(); return; }
+    S.prep--;
+    log(`清场前的第 ${S.prep} 天。楼下的车比昨天多了。`,'bad');
+  }
+  if(S.day>=LAST_DAY){ startAssault(); return; }
 
   const ev=pickEvent();
   renderAll(); save();
@@ -678,10 +693,19 @@ function endTurn(){
   applyEff({r:-(2+Math.floor(S.day/4)), pub:-3, arm:-2, rad:-1});
   if(S.susp>=60) applyEff({pub:-1});   // 董事会一认真，舆论就跟着压过来
   S.susp=cl100(S.susp+prRate());
+  if(S.susp>=100 && !S.prep){
+    S.prep=3;
+    log('校董会通过了清场的决议。据保卫处的人说，还有三天。','bad');
+    note('ds','校董会决定清场，进入准备阶段',{});
+  }
   log('又过去一天。门口的铁马换了个位置，别的一样。','');
   if(guard()<20){
     S.susp=cl100(S.susp+3);
     log('保安大队被集体约谈，态度一下子硬了起来。','bad');
+  }
+  if(S.prep>0){
+    applyEff({pub:-1,r:-1});
+    log(pick(['保卫处在楼下架起了探照灯。','保安大队调来了两辆中巴车。','学生会通知各学院：明天停课。']),'bad');
   }
   // 每晚：派系各显其能 + 媒体进账 + 各媒体发挥影响
   nightlyFactions();
@@ -722,6 +746,7 @@ function paperStamps(e){
 }
 function paperComment(){
   const v=Math.round(S.susp);
+  if(S.prep>0) return `清场已经定了下来，据说还有 ${S.prep} 天。编辑部今晚把稿子写成两版。`;
   if(v>=80) return '明天不会平静。董事会的车队已经在北门等着了。';
   if(v>=60) return '楼下的铁马又加了一排。编辑部今晚不打算关灯。';
   if(v>=40) return '校董会开始认真对待桃园了，这不是好事，也不是坏事。';
