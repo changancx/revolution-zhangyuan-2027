@@ -14,6 +14,8 @@ const $$=s=>Array.from(document.querySelectorAll(s));
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const cl100=v=>clamp(v,0,100);
 const rand=n=>Math.floor(Math.random()*n);
+function sfx(n){ try{ if(typeof Sound!=='undefined') Sound.play(n); }catch(e){} }
+function music(m){ try{ if(typeof Sound!=='undefined') Sound.setMode(m); }catch(e){} }
 const pick=a=>a[rand(a.length)];
 
 /* ── 派系动作 ── */
@@ -594,6 +596,7 @@ function chooseEvent(i){
   S.usedEv.push(ev.id); S.pendingEvent=null;
   applyEff(c.e);
   note('event', ev.t+' · '+c.l, c.e);
+  sfx('stamp');
   log(`「${ev.t}」— ${c.l}`,'new');
   addFeed();
   show('s-map');
@@ -610,6 +613,7 @@ function doAct(id){
   S.actsLeft--;
   S.usedActs.push(a.id);
   if(a.once) S.usedOnce.push(a.id);
+  sfx('ok');
   applyEff(a.eff);
   note('act', a.name+'：'+a.res, a.eff);
   log(`<b>${a.name}</b>：${a.res}`,'new');
@@ -642,6 +646,7 @@ function doLaw(id){
   if(id==='L6') S.proposed=true;
   applyEff(L.eff);
   note('law', L.name, L.eff);
+  sfx('stamp');
   log(`<b>${L.name}</b> 颁布。${L.res}`,'new');
   addFeed();
   show('s-map'); renderAll(); save();
@@ -685,6 +690,7 @@ function note(kind,t,eff){
 }
 
 function endTurn(){
+  sfx('paper');
   if(S.over||S.pendingEvent) return;
   if(S.actsLeft>0) log('还有行动没做，这一天就这么过去了。','');
   const p=pick(DS);
@@ -756,6 +762,7 @@ function paperComment(){
 }
 
 function showPaper(){
+  sfx('paper');
   const M=(S.dayMoves||[]).slice();
   const rank={ds:0,event:1,law:2,act:3,media:4};
   M.sort((a,b)=>(rank[a.kind]??9)-(rank[b.kind]??9));
@@ -842,7 +849,7 @@ function startAssault(){
     order:'hold', done:false, log:[], lastHits:null
   };
   S.storm.log.push({t:`07:00 · 装甲车堵住两个路口。能上墙的 ${pool} 人，舆论 ${air}。`,k:''});
-  show('s-assault'); renderAssault(); save();
+  show('s-assault'); renderAssault(); sfx('alarm'); music('tense'); save();
 }
 
 function weakest(){
@@ -897,6 +904,7 @@ function pickOrder(id){
 
 function stormHour(){
   const st=S.storm; if(!st||st.done) return;
+  sfx('bolt');
   let enemy=3+Math.floor((st.hour-HOUR_FROM)/2)+(guard()<45?1:0)+(S.rad>=60?1:0);
   const hh=`${st.hour}:00 → ${st.hour+1}:00`;
 
@@ -951,6 +959,7 @@ function stormHour(){
 function gameOver(kind){
   S.over=true; S.endedAs=kind;
   const E=END[kind]||END.held;
+  sfx(E.cls==='win'?'win':'lose'); music('off');
   let unlocked=0;
   try{
     const raw=localStorage.getItem(UNLOCK_KEY);
@@ -1014,11 +1023,19 @@ function continueGame(){
   else { show('s-map'); renderMap(); if(S.pendingEvent) showEvent(S.pendingEvent); }
 }
 
+function updateSoundLabel(){
+  const el=$('#menu-sound'); if(!el) return;
+  const on=(typeof Sound==='undefined')?true:Sound.on;
+  el.textContent = on ? '声音：开 SOUND ON' : '声音：关 SOUND OFF';
+  el.classList.toggle('off', false);
+}
+
 function refreshTitle(){
   const btn=$('#title-menu').querySelector('[data-k="continue"]');
   btn.classList.toggle('off', !load());
   let n=0; try{ const r=localStorage.getItem(UNLOCK_KEY); n=r?JSON.parse(r).length:0; }catch(e){}
   $('.dates').textContent=`${LAST_DAY} 天 · 已解锁结局 ${n} / ${Object.keys(END).length}`;
+  updateSoundLabel();
 }
 
 /* ══════════ 舞台缩放 ══════════ */
@@ -1064,6 +1081,7 @@ function onKey(e){
 
 /* ══════════ 菜单 / 导航 ══════════ */
 function navGo(t){
+  sfx('click');
   if(t==='menu') return openMenu();
   if(t==='end') return endTurn();
   if(t==='map') return show('s-map');
@@ -1098,6 +1116,7 @@ function bind(){
     if(k==='new') newGame();
     else if(k==='continue') continueGame();
     else if(k==='help') openHelp();
+    else if(k==='sound'){ if(typeof Sound!=='undefined'){ Sound.toggle(); updateSoundLabel(); } }
   });
   // 地图：选点
   $('#map-pts').addEventListener('click',e=>{
@@ -1167,6 +1186,7 @@ function bind(){
   // toast 关闭
   $('#toast').onclick=()=>$('#toast').classList.remove('on');
 
+  window.addEventListener('pointerdown',function(){ try{ if(typeof Sound!=='undefined') Sound.unlock(); }catch(e){} },{once:true});
   window.addEventListener('resize',fitStage);
   window.addEventListener('keydown',onKey);
 }
