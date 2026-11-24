@@ -10,6 +10,9 @@
 <meta name="apple-mobile-web-app-title" content="张院 2027">
 <title>革命：张院 2027</title>
 <link rel="stylesheet" href="css/ui.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
 
@@ -251,5 +254,15 @@
 <script src="js/audio.js"></script>
 <script src="js/art.js"></script>
 <script src="js/game.js"></script>
+<script>
+if("serviceWorker" in navigator && /^https?:/.test(location.protocol)){
+  window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible" && navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage({ping:1});
+    }
+  });
+}
+</script>
 </body>
 </html>
