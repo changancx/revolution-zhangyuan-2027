@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /* ══════════════════════════════════════════════════════════
    桃园 · 引擎
    ══════════════════════════════════════════════════════════ */
@@ -48,7 +48,7 @@ function newState(){
   LOC.forEach(l=>{ sup[l.id]=l.vs; });
   return {
     day:1, phase:1,
-    r:34, rad:20, pub:32, susp:15, neg:0, med:6,
+    r:34, rad:20, pub:32, susp:0, neg:0, med:6,
     opening:true, sup, out:{},
     fac, cnt, fl,
     actsLeft:2, lawDone:false, medDone:false,
@@ -164,11 +164,24 @@ function show(id){
 }
 
 /* ══════════ 地图 ══════════ */
+function prRate(){
+  const P=7;   // 原版 PRATE=5（21 天），这里压到 12 天，基数提到 7
+  return Math.max(2, P
+    - (S.sup.bw>=65?2:0)      // 保卫处（原总参谋部）站过来 → 慢 2
+    - (S.sup.ab>=65?1:0)      // 保安大队（原国防部）→ 慢 1
+    + (S.sup.xs<=10?1:0)      // 学生会（原内务部）完全是他们的 → 快 1
+    - (S.pub>=65?1:0)         // 全校支持高 → 慢 1
+    + (S.pub<=25?1:0)         // 全校支持低 → 快 1
+    + (S.rad>=60?1:0)         // 激进 60 以上 → 快 1
+    + (S.rad>=80?1:0)         // 激进 80 以上 → 再快 1
+    - (insideN()>=200?1:0));  // 楼里人多 → 慢 1
+}
+
 function suspState(){
-  if(S.susp>=80) return {t:'已决定清场',k:'hot'};
-  if(S.susp>=60) return {t:'开始准备清场',k:'hot'};
-  if(S.susp>=40) return {t:'开始盯着你们',k:''};
-  if(S.susp>=22) return {t:'有人提了一句',k:''};
+  if(S.susp>=90) return {t:'明早就会动手',k:'hot'};
+  if(S.susp>=70) return {t:'开始准备清场',k:'hot'};
+  if(S.susp>=45) return {t:'盯着你们了',k:''};
+  if(S.susp>=20) return {t:'有人提了一句',k:''};
   return {t:'还没把你们当回事',k:''};
 }
 
@@ -643,7 +656,7 @@ function startDay(){
   log(`第 ${S.day} 天 · ${PHASE_NAME[S.phase]}`,'kr');
   addFeed();
 
-  if(S.day>=LAST_DAY || S.susp>=80){ startAssault(); return; }
+  if(S.day>=LAST_DAY || S.susp>=100){ startAssault(); return; }
 
   const ev=pickEvent();
   renderAll(); save();
@@ -664,10 +677,10 @@ function endTurn(){
   log(p.t,'dn');
   applyEff({r:-(2+Math.floor(S.day/4)), pub:-3, arm:-2, rad:-1});
   if(S.susp>=60) applyEff({pub:-1});   // 董事会一认真，舆论就跟着压过来
-  S.susp=cl100(S.susp+2);
+  S.susp=cl100(S.susp+prRate());
   log('又过去一天。门口的铁马换了个位置，别的一样。','');
   if(guard()<20){
-    S.susp=cl100(S.susp+4);
+    S.susp=cl100(S.susp+3);
     log('保安大队被集体约谈，态度一下子硬了起来。','bad');
   }
   // 每晚：派系各显其能 + 媒体进账 + 各媒体发挥影响
@@ -784,71 +797,130 @@ function addFeed(){
   if(S.feed.length>40) S.feed.shift();
 }
 
-/* ══════════ 强攻 ══════════ */
+/* ══════════ 强攻（照原版：按小时守、分部位、下指令） ══════════ */
 const SECTORS=['正门','东侧楼梯','广播室'];
+const HOUR_FROM=7, HOUR_TO=18;
+const ORDERS=[
+  { id:'hold',     nm:'固守',     d:'最弱的一处补 2 人，稳一小时' },
+  { id:'counter',  nm:'反击',     d:'打出去：这一小时来犯减 1，决心 −2' },
+  { id:'fallback', nm:'撤回内圈', d:'外围各撤 1 人到底楼，减少损失' },
+  { id:'call',     nm:'呼叫支援', d:'舆论 ≥30 时补 2 人，花 8 点舆论' }
+];
 
 function startAssault(){
   S.over=true; S.pendingEvent=null;
-  const g=clamp(Math.round(4 + S.pub/14 + validSeats()/26 + guard()/16), 4, 26);
-  S.storm={wave:1,def:[0,0,0],reserve:g,total:g,broke:0,done:false,log:[],lastHits:null};
-  S.storm.log.push({t:`守备 ${g} 人：由全校支持和桃园里的人数凑出来的。`,k:''});
+  const pool=clamp(Math.round(6 + S.pub/10 + validSeats()/22 + guard()/20), 5, 30);
+  const air=clamp(Math.round(S.med*2 + S.pub/2), 0, 100);
+  S.storm={
+    hour:HOUR_FROM, def:[0,0,0], pool, total:pool, cas:0, broke:0, air,
+    order:'hold', done:false, log:[], lastHits:null
+  };
+  S.storm.log.push({t:`07:00 · 装甲车堵住两个路口。能上墙的 ${pool} 人，舆论 ${air}。`,k:''});
   show('s-assault'); renderAssault(); save();
+}
+
+function weakest(){
+  const d=S.storm.def; let w=0;
+  for(let i=1;i<3;i++) if(d[i]<d[w]) w=i;
+  return w;
 }
 
 function renderAssault(){
   const st=S.storm; if(!st) return;
-  $('#a-wave').textContent=st.done?3:st.wave;
-  $('#a-res').textContent=st.reserve;
+  $('#a-wave').textContent=`${st.hour}:00`;
+  $('#a-res').textContent=st.pool;
   $('#a-r').textContent=Math.round(S.r);
   drawAssault(st);
-  if(st.done){ $('#a-sectors').innerHTML=''; $('#b-wave').innerHTML='<div>已结束</div><small>—</small>'; return; }
+  if(st.done){
+    $('#a-sectors').innerHTML=''; $('#a-orders').innerHTML='';
+    $('#b-wave').innerHTML='<div>已结束</div><small>—</small>'; return;
+  }
   $('#a-sectors').innerHTML=SECTORS.map((n,i)=>{
     const cls=st.lastHits&&st.lastHits[i]!==undefined? (st.lastHits[i]?'break':'hold'):'';
     return `<div class="sc ${cls}">
       <div class="sn"><span>${n}</span><b>${st.def[i]}</b></div>
       <div class="st">
         <button data-sec="${i}" data-d="-1" ${st.def[i]<=0?'disabled':''}>−</button>
-        <button data-sec="${i}" data-d="1" ${st.reserve<=0?'disabled':''}>＋</button>
-        <span style="font-size:12px;color:var(--dim);line-height:26px">守卫人数</span>
+        <button data-sec="${i}" data-d="1" ${st.pool<=0?'disabled':''}>＋</button>
+        <span style="font-size:12px;color:var(--dim);line-height:26px">守卫</span>
       </div>
     </div>`;
   }).join('');
-  const base=st.wave*2+1+(guard()<45?1:0)+(guard()<25?1:0);
-  $('#a-hint').textContent=`保卫处估计：今夜会有两处被压上，每处约 ${base} 人。`;
-  $('#a-log').innerHTML=st.log.slice(-6).map(l=>`<div class="${l.k}">${l.t}</div>`).join('');
-  $('#b-wave').innerHTML=`<div>开始第 ${st.wave} 波</div><small>回车</small>`;
+  $('#a-orders').innerHTML=`<div class="grp">这一小时的指令</div>`+ORDERS.map(o=>{
+    const on=st.order===o.id?'on':'';
+    return `<div class="order ${on}" data-ord="${o.id}">
+      <div class="on1">${o.nm}</div><div class="on2">${o.d}</div></div>`;
+  }).join('');
+  const enemy=3+Math.floor((st.hour-HOUR_FROM)/2)+(guard()<45?1:0)+(S.rad>=60?1:0);
+  $('#a-hint').textContent=`保卫处判断：这一小时会有两处被压上，每处约 ${enemy} 人。离傍晚还有 ${HOUR_TO-st.hour} 小时。`;
+  $('#a-log').innerHTML=st.log.slice(-7).map(l=>`<div class="${l.k}">${l.t}</div>`).join('');
+  $('#b-wave').innerHTML=`<div>下一小时</div><small>${st.hour+1}:00 · 回车</small>`;
 }
 
 function stormStep(i,d){
   const st=S.storm; if(!st||st.done) return;
-  if(d>0){ if(st.reserve<=0) return; st.def[i]++; st.reserve--; }
-  else { if(st.def[i]<=0) return; st.def[i]--; st.reserve++; }
+  if(d>0){ if(st.pool<=0) return; st.def[i]++; st.pool--; }
+  else { if(st.def[i]<=0) return; st.def[i]--; st.pool++; }
   renderAssault();
 }
 
-function nextWave(){
+function pickOrder(id){
   const st=S.storm; if(!st||st.done) return;
-  const base=st.wave*2+1+(guard()<45?1:0)+(guard()<25?1:0);
+  st.order=id; renderAssault();
+}
+
+function stormHour(){
+  const st=S.storm; if(!st||st.done) return;
+  let enemy=3+Math.floor((st.hour-HOUR_FROM)/2)+(guard()<45?1:0)+(S.rad>=60?1:0);
+  const hh=`${st.hour}:00 → ${st.hour+1}:00`;
+
+  // 指令
+  if(st.order==='hold'){ const w=weakest(); st.def[w]+=2; st.log.push({t:`${hh} 固守：${SECTORS[w]}补上 2 人。`,k:''}); }
+  else if(st.order==='counter'){
+    enemy=Math.max(1,enemy-1); S.r=cl100(S.r-2); st.cas+=1;
+    st.log.push({t:`${hh} 反击：打退了前面的几个人，决心 −2，伤了 1 个。`,k:'bad'});
+  } else if(st.order==='fallback'){
+    [0,1].forEach(i=>{ if(st.def[i]>0){ st.def[i]--; st.def[2]++; } });
+    st.log.push({t:`${hh} 撤回内圈：外围让出来，人都退到底楼。`,k:''});
+  } else if(st.order==='call'){
+    if(st.air>=30){ st.pool+=2; st.air-=8; st.log.push({t:`${hh} 呼叫支援：从后门进来 2 个人。`,k:'new'}); }
+    else st.log.push({t:`${hh} 呼叫支援：外面没人在听。`,k:'bad'});
+  }
+  st.order='hold';
+
+  // 来犯：两处被压上
   const order=[0,1,2].sort(()=>Math.random()-.5).slice(0,2);
   st.lastHits=[0,0,0];
-  st.log.push({t:`第 ${st.wave} 波 · 对方压上了${SECTORS[order[0]]}和${SECTORS[order[1]]}，每处 ${base} 人。`,k:''});
+  st.log.push({t:`${hh} 对方压上了${SECTORS[order[0]]}和${SECTORS[order[1]]}，每处 ${enemy} 人。`,k:''});
   order.forEach(i=>{
-    if(st.def[i]>=base){
+    if(st.def[i]>=enemy){
       st.lastHits[i]=0; st.def[i]=Math.max(0,st.def[i]-1);
       st.log.push({t:`${SECTORS[i]}守住了。`,k:'new'});
     } else {
-      st.lastHits[i]=1; st.def[i]=0; st.broke++;
-      S.r=cl100(S.r-9); S.pub=cl100(S.pub-5);
-      st.log.push({t:`${SECTORS[i]}被冲破。决心 −9，支持 −5。`,k:'bad'});
+      st.lastHits[i]=1; st.cas+=st.def[i]; st.def[i]=0; st.broke++;
+      S.r=cl100(S.r-7); S.pub=cl100(S.pub-4); st.air=clamp(st.air-6,0,100);
+      st.log.push({t:`${SECTORS[i]}被冲破，伤亡惨重。决心 −7，支持 −4。`,k:'bad'});
     }
   });
-  if(S.r<=0){ st.done=true; renderAssault(); setTimeout(()=>gameOver('fallen'),600); return; }
-  if(st.wave>=3){ st.done=true; renderAssault(); setTimeout(()=>gameOver(S.neg>=2?'mediate':'held'),600); return; }
-  st.wave++;
-  if(S.pub>=45){ st.reserve++; st.log.push({t:'又有人从后门进来，补进了预备队。',k:'new'}); }
+
+  // 每小时：支持够就有志愿者补充
+  if(S.pub>=50 && st.pool+st.def[0]+st.def[1]+st.def[2]<st.total+4){
+    st.pool+=1; st.log.push({t:'楼下有人从后门进来，补进预备队。',k:'new'});
+  }
+
+  st.hour++;
+
+  if(S.r<=0 || st.broke>=3){
+    st.done=true; renderAssault();
+    return setTimeout(()=>gameOver(st.air>=50 ? 'pyrrhic' : 'fallen'), 600);
+  }
+  if(st.hour>HOUR_TO){
+    st.done=true; renderAssault();
+    const kind = st.air>=45 ? (S.neg>=2 ? 'mediate' : 'held') : 'isolated';
+    return setTimeout(()=>gameOver(kind), 600);
+  }
   renderAssault(); save();
 }
-
 /* ══════════ 结算 ══════════ */
 function gameOver(kind){
   S.over=true; S.endedAs=kind;
@@ -958,7 +1030,7 @@ function onKey(e){
   } else if(cur==='s-paper'){
     if(k==='Enter') nextDay();
   } else if(cur==='s-assault'){
-    if(k==='Enter') nextWave();
+    if(k==='Enter') stormHour();
   } else if(cur==='s-end'){
     if(k==='r'||k==='R') newGame();
   }
@@ -1054,7 +1126,11 @@ function bind(){
     const b=e.target.closest('button[data-sec]'); if(!b) return;
     stormStep(parseInt(b.dataset.sec,10), parseInt(b.dataset.d,10));
   });
-  $('#b-wave').onclick=()=>nextWave();
+  $('#b-wave').onclick=()=>stormHour();
+  $('#a-orders').addEventListener('click',e=>{
+    const o=e.target.closest('[data-ord]'); if(!o) return;
+    pickOrder(o.dataset.ord);
+  });
 
   // 事件
   $('#e-choices').addEventListener('click',e=>{

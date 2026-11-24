@@ -242,6 +242,14 @@ body{
 #a-notes{position:absolute;inset:0}
 #s-assault .side{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
 .sectors{display:flex;flex-direction:column;gap:6px}
+.orders{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.orders .grp{grid-column:1/-1;font-size:12px;color:var(--dim);letter-spacing:2px}
+.order{border:2px solid var(--line);background:var(--panel2);padding:5px 8px;cursor:pointer}
+.order:hover{border-color:var(--line-hi)}
+.order.on{border-color:var(--fire);background:#2a2216}
+.order .on1{font-size:12px;color:var(--paper)}
+.order .on2{font-size:12px;color:var(--dim);line-height:15px;margin-top:1px}
+.order.on .on1{color:var(--fire)}
 .sc{border:2px solid var(--line);background:var(--panel);padding:6px 10px;text-align:left}
 .sc.break{border-color:#5c2723;background:#180e0d}
 .sc.hold{border-color:#224534;background:#0c1712}
