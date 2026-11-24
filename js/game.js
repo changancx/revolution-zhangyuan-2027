@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 /* ══════════════════════════════════════════════════════════
    桃园 · 引擎
    ══════════════════════════════════════════════════════════ */
@@ -115,9 +115,9 @@ function toast(t){
 /* 董事会怀疑：你动静越大，董事会越早动手 */
 function suspGain(e){
   let s=(e.s||0);
-  if(e.rad) s += Math.max(0,e.rad)*0.35;
-  if(e.pub) s += Math.max(0,e.pub)*0.22;
-  if(e.r)   s += Math.max(0,e.r)*0.10;
+  if(e.rad) s += Math.max(0,e.rad)*0.26;
+  if(e.pub) s += Math.max(0,e.pub)*0.15;
+  if(e.r)   s += Math.max(0,e.r)*0.07;
   if(e.neg) s -= Math.min(9, e.neg*3);
   return Math.round(s);
 }
@@ -165,7 +165,7 @@ function show(id){
 
 /* ══════════ 地图 ══════════ */
 function prRate(){
-  const P=7;   // 原版 PRATE=5（21 天），这里压到 12 天，基数提到 7
+  const P=5;   // 原版 PRATE=5
   return Math.max(2, P
     - (S.sup.bw>=65?2:0)      // 保卫处（原总参谋部）站过来 → 慢 2
     - (S.sup.ab>=65?1:0)      // 保安大队（原国防部）→ 慢 1
@@ -214,7 +214,7 @@ function renderMap(){
   $('#m-pub').textContent=S.pub;
   $('#m-in').textContent=insideN();
 
-  let tl='<span class="lbl">十二天</span>';
+  let tl='<span class="lbl">'+LAST_DAY+' 天</span>';
   for(let d=1;d<=LAST_DAY;d++){
     const cls= d<S.day?'past': d===S.day?'now':'';
     const risk= d>=10 && d>=S.day ? 'risk':'';
@@ -551,7 +551,8 @@ function renderLaws(selId){
 function pickEvent(){
   const scripted=EV.find(e=>e.day===S.day && !S.usedEv.includes(e.id));
   if(scripted) return scripted;
-  const pool=EV.filter(e=>!S.usedEv.includes(e.id) && !e.day && e.ph.includes(S.phase) && (!e.cond||e.cond(S)));
+  const ph=[S.phase]; if(S.phase===2 && S.day>=14) ph.push(3);
+  const pool=EV.filter(e=>!S.usedEv.includes(e.id) && !e.day && e.ph.some(function(p){return ph.indexOf(p)>=0;}) && (!e.cond||e.cond(S)));
   if(!pool.length){ const any=EV.filter(e=>!S.usedEv.includes(e.id) && !e.day); return any.length?pick(any):null; }
   return pick(pool);
 }
@@ -656,7 +657,7 @@ function offerLaws(){
 
 function startDay(){
   if(S.over) return;
-  S.phase=S.day<=4?1:(S.day<=8?2:3);
+  S.phase=S.day<=7?1:2;   // 第三阶段只属于强攻那一屏
   S.actsLeft=2; S.lawDone=false; S.medDone=false;
   S.usedActs=[]; S.pulledToday=false; S.appeals={};
   S.dayMoves=[];                                   // 当日流水，写报纸用
@@ -690,7 +691,7 @@ function endTurn(){
   applyEff(p.e);
   note('ds', p.t, p.e);
   log(p.t,'dn');
-  applyEff({r:-(2+Math.floor(S.day/4)), pub:-3, arm:-2, rad:-1});
+  applyEff({r:-(2+Math.floor(S.day/6)), pub:-3, arm:-2, rad:-1});
   if(S.susp>=60) applyEff({pub:-1});   // 董事会一认真，舆论就跟着压过来
   S.susp=cl100(S.susp+prRate());
   if(S.susp>=100 && !S.prep){
@@ -1017,7 +1018,7 @@ function refreshTitle(){
   const btn=$('#title-menu').querySelector('[data-k="continue"]');
   btn.classList.toggle('off', !load());
   let n=0; try{ const r=localStorage.getItem(UNLOCK_KEY); n=r?JSON.parse(r).length:0; }catch(e){}
-  $('.dates').textContent=`12 天 · 已解锁结局 ${n} / ${Object.keys(END).length}`;
+  $('.dates').textContent=`${LAST_DAY} 天 · 已解锁结局 ${n} / ${Object.keys(END).length}`;
 }
 
 /* ══════════ 舞台缩放 ══════════ */

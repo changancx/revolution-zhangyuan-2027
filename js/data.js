@@ -5,7 +5,7 @@
    ⑤ 事件 EV ⑥ 媒体 MED ⑦ 结局 END ⑧ 校园墙墙 FEED
    ══════════════════════════════════════════════════════════ */
 
-const LAST_DAY = 12;
+const LAST_DAY = 20;
 const ASSAULT_ARM = 58;
 
 /* ── ① 派系 ──
