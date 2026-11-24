@@ -202,8 +202,14 @@ body{
 .mc .ms{font-size:12px;color:var(--dim);text-align:right}
 .mc .ms.vs{color:#7fa0cf}.mc .ms.neu{color:#c9a25a}.mc .ms.kr{color:#e0866a}.mc .ms.off{color:#666}
 .mc.dim .mn{color:var(--mute)}
+.mc.prop{grid-template-columns:1fr 26px 132px;background:#131b17;border-left:3px solid #3f6b4f}
+.mc.prop .mr{font-family:'PSP',monospace;font-size:12px;color:var(--fire);text-align:center}
+.mc.prop .ms{font-size:12px;color:var(--dim);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc.prop:hover{border-color:var(--fire)}
 .mlist .grp{font-size:12px;color:var(--dim);letter-spacing:2px;margin:6px 0 2px;padding-left:2px}
 .mdetail{flex:1;padding:10px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.mstat{font-size:12px;color:var(--dim);background:#12181e;border:1px solid #253140;padding:5px 8px;letter-spacing:1px}
+.mstat b{color:var(--fire);font-weight:400;font-family:'PSP',monospace}
 .mdetail h3{margin:0;font-size:24px;line-height:28px}
 .mdetail .od{font-size:12px;color:var(--dim);line-height:18px}
 .mdetail .os{font-size:12px;color:var(--fire);margin-top:2px}

@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 /* ══════════════════════════════════════════════════════════
    桃园 · 引擎
    ══════════════════════════════════════════════════════════ */
@@ -429,12 +429,14 @@ function renderMedia(){
   const list=OUTLETS.slice().sort((a,b)=>ord[outSt(a)]-ord[outSt(b)]||b.r-a.r);
   const groups=[['vs','支持桃园'],['neu','中立'],['kr','支持董事会'],['off','已关闭']];
   let html='';
-  const propUsed=!!S.appeals.prop;
-  html+=`<div class="grp">常规宣传</div>
-    <div class="mc s-vs ${propUsed?'dim':''}" data-prop="1">
-      <div class="mn">例行宣传 · 楼内广播</div><div class="mr">—</div>
-      <div class="ms vs">${propUsed?'今天已播':'每天一次 · 免费'}</div>
+  html+=`<div class="grp">常规宣传 · 每条每天一次，都要花舆论</div>`;
+  PROPS.forEach(p=>{
+    const key='p_'+p.id, used=!!S.appeals[key], can=!used && S.med>=p.cost;
+    html+=`<div class="mc prop s-vs ${can?'':'dim'}" data-prop="${p.id}">
+      <div class="mn">${p.nm}</div><div class="mr">${p.cost}</div>
+      <div class="ms">${used?'今天已用':(S.med>=p.cost?effText(p.fx):'舆论不够')}</div>
     </div>`;
+  });
   groups.forEach(([g,label])=>{
     const rows=list.filter(o=>outSt(o)===g);
     if(!rows.length) return;
@@ -450,7 +452,10 @@ function renderMedia(){
   $('#d-list').innerHTML=html;
 
   const o=OUTLETS.find(x=>x.id===mediaSel), st=outSt(o), X=OUT_X[o.id];
-  let detail=`<h3>${o.nm}</h3><div class="od">${X&&X.about||''}</div><div class="os">覆盖 ${o.r} · ${SN[st]} · ${o.aud||''}</div>`;
+  const mineN=OUTLETS.filter(x=>outSt(x)==='vs').length;
+  const theirN=OUTLETS.filter(x=>outSt(x)==='kr').length;
+  let detail=`<div class="mstat">舆论 <b>${S.med}</b> · 每晚进账 <b>+${mediaIncome()}</b> · 手里 <b>${mineN}</b> 家 · 对方 <b>${theirN}</b> 家</div>`
+    + `<h3>${o.nm}</h3><div class="od">${X&&X.about||''}</div><div class="os">覆盖 ${o.r} · ${SN[st]} · ${o.aud||''}</div>`;
   if(st==='vs'){
     const acts=[['o'+o.id,X.act],['p'+o.id,X.act2]].filter(a=>a[1]);
     acts.forEach(([key,a])=>{
@@ -514,13 +519,17 @@ function outAct(key){
 }
 
 /* 常规宣传：楼内广播，每天一次，不占行动、不花舆论 */
-function doProp(){
-  if(S.appeals.prop){ toast('今天的例行宣传已经做过了。'); return; }
-  S.appeals.prop=1;
-  const eff={pub:3, s:1};
-  applyEff(eff);
-  note('media','例行宣传：楼内广播照常播报', eff);
-  log('楼内广播照常播报，声音传到了操场边缘。','new');
+function doProp(id){
+  const P=(typeof PROPS!=='undefined')? PROPS.find(x=>x.id===id) : null;
+  if(!P){ toast('没有这一项。'); return; }
+  const key='p_'+P.id;
+  if(S.appeals[key]){ toast('今天这一项已经做过了。'); return; }
+  if(S.med<P.cost){ toast(`需要 ${P.cost} 点舆论。`); return; }
+  S.med-=P.cost; S.appeals[key]=1;
+  applyEff(P.fx);
+  note('media','常规宣传：'+P.nm, P.fx);
+  log(`<b>${P.nm}</b>：花了 ${P.cost} 点舆论。`,'new');
+  sfx('pips');
   renderAll(); save();
 }
 
@@ -1154,7 +1163,7 @@ function bind(){
 
   // 舆论
   $('#d-list').onclick=e=>{
-    if(e.target.closest('[data-prop]')){ doProp(); return; }
+    const pr=e.target.closest('[data-prop]'); if(pr){ doProp(pr.dataset.prop); return; }
     const o=e.target.closest('[data-o]'); if(!o) return; mediaSel=o.dataset.o; renderMedia();
   };
   $('#d-detail').onclick=e=>{
